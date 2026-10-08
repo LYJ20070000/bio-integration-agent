@@ -1,0 +1,40 @@
+{
+  "project_id": "spagcn_stagate_demo",
+  "direction": "spatial_domain_identification",
+  "algorithm_set": [
+    {
+      "algorithm_id": "spagcn",
+      "canonical_name": "SpaGCN",
+      "aliases": [],
+      "original_paper_doi": "10.1038/s41592-021-01255-8",
+      "original_paper_url": "https://www.nature.com/articles/s41592-021-01255-8",
+      "version": "not_specified",
+      "related_versions": [],
+      "documentation_url": "not_specified",
+      "repository_url": "https://github.com/jianhuupenn/SpaGCN",
+      "notes": "Example candidate supplied by the project template."
+    },
+    {
+      "algorithm_id": "stagate",
+      "canonical_name": "STAGATE",
+      "aliases": [],
+      "original_paper_doi": "10.1038/s41467-022-29439-6",
+      "original_paper_url": "https://www.nature.com/articles/s41467-022-29439-6",
+      "version": "not_specified",
+      "related_versions": [],
+      "documentation_url": "not_specified",
+      "repository_url": "https://github.com/zhanglabtools/STAGATE",
+      "notes": "Example candidate supplied by the project template."
+    }
+  ],
+  "retrieval_scope": {
+    "independent_benchmarks": true,
+    "biological_applications": true
+  },
+  "available_materials": {},
+  "evaluation_preferences": {
+    "seeds": [7, 17, 29],
+    "split_unit": "section"
+  },
+  "downstream_analysis_requested": false
+}

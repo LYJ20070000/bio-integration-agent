@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp*/
+.venv/
+dist/
+build/
+artifacts/*
+!artifacts/.gitkeep
+reports/generated/*
+!reports/generated/.gitkeep
