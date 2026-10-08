@@ -6,8 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .contracts import EvaluationPlan, ProjectConfig, ResultRecord, ResultStatus
+from .contracts import EvaluationPlan, IntegrationComponent, IntegrationDesign, ProjectConfig
 from .evaluation import ResultStore, audit_leakage, stable_hash
+from .integration import EvaluationCase, IntegrationEvaluator
 from .methods import IntegratedMechanismDemo, STAGATEMechanismDemo, SpaGCNMechanismDemo
 
 
@@ -99,45 +100,69 @@ def run_demo(
         "scope": "DEMO_ONLY",
     }
     config_hash = stable_hash(config)
+    design = IntegrationDesign(
+        method_id=integrated.method_id,
+        components=(
+            IntegrationComponent(
+                component_id="histology_graph",
+                source_algorithm_id="spagcn",
+                source_component="histology-aware spatial graph mechanism",
+                adapted_component="demonstration graph smoothing stage",
+                target_weakness="spatial representation without demonstrated image context",
+                evidence_claim_ids=(),
+                new_assumptions=("Unverified mechanism mapping; DEMO_ONLY.",),
+                ablation_flag="ablation_without_histology_graph",
+            ),
+            IntegrationComponent(
+                component_id="graph_attention",
+                source_algorithm_id="stagate",
+                source_component="adaptive graph attention mechanism",
+                adapted_component="demonstration attention smoothing stage",
+                target_weakness="fixed graph weights in the preceding stage",
+                evidence_claim_ids=(),
+                new_assumptions=("Sequential composition is unverified; DEMO_ONLY.",),
+                ablation_flag="ablation_without_attention",
+            ),
+        ),
+        composition_description=(
+            "Apply the SpaGCN-inspired demonstration graph transform followed by the "
+            "STAGATE-inspired demonstration attention transform."
+        ),
+        objective_metric="two_cluster_label_accuracy",
+        minimum_improvement=0.0,
+        minimum_complete_comparisons=1,
+        result_scope="DEMO_ONLY",
+    )
+    evaluator = IntegrationEvaluator(
+        project=project,
+        design=design,
+        baselines={method.method_id: method for method in baselines},
+        candidate=integrated,
+        ablations={method.method_id: method for method in ablations},
+        plan=plan,
+        leakage=leakage,
+        configuration_hash=config_hash,
+        implementation_kind="mechanism_demonstration",
+    )
+    run = evaluator.evaluate(
+        (
+            EvaluationCase(
+                dataset="synthetic_two_domain_tissue",
+                split="fixed_demo_split",
+                seed=seed,
+                expression=expression,
+                coordinates=coordinates,
+                image_features=image_features,
+                labels=labels,
+            ),
+        ),
+        _two_cluster_accuracy,
+    )
     store = ResultStore(output_dir / "results.json")
-    scores: dict[str, float | None] = {}
-    records: list[ResultRecord] = []
-    for method in methods:
-        try:
-            representation = method.fit_transform(expression, coordinates, image_features)
-            score = _two_cluster_accuracy(representation, labels)
-            scores[method.method_id] = score
-            record = ResultRecord(
-                method=method.method_id,
-                dataset="synthetic_two_domain_tissue",
-                split="fixed_demo_split",
-                seed=seed,
-                configuration_hash=config_hash,
-                metric="two_cluster_label_accuracy",
-                value=score,
-                result_scope="DEMO_ONLY",
-                implementation_kind="mechanism_demonstration",
-                evaluation_plan_hash=plan_hash,
-                leakage_report_hash=leakage_hash,
-            )
-        except Exception as exc:  # Preserve failures instead of silently dropping a method.
-            scores[method.method_id] = None
-            record = ResultRecord(
-                method=method.method_id,
-                dataset="synthetic_two_domain_tissue",
-                split="fixed_demo_split",
-                seed=seed,
-                configuration_hash=config_hash,
-                metric="two_cluster_label_accuracy",
-                status=ResultStatus.FAILED,
-                failure_reason=f"{type(exc).__name__}: {exc}",
-                result_scope="DEMO_ONLY",
-                implementation_kind="mechanism_demonstration",
-                evaluation_plan_hash=plan_hash,
-                leakage_report_hash=leakage_hash,
-            )
-        records.append(record)
-    store.replace(records, leakage)
+    store.replace(run.records, leakage)
+    scores = {item.method: item.value for item in run.records}
+    assessment_path = output_dir / "integration_assessment.json"
+    assessment_path.write_text(run.assessment.model_dump_json(indent=2), encoding="utf-8")
 
     summary: dict[str, object] = {
         "status": "DEMO_ONLY",
@@ -147,6 +172,7 @@ def run_demo(
         "required_baselines": sorted(project.algorithm_ids),
         "ablation_methods": [method.method_id for method in ablations],
         "scores": scores,
+        "integration_assessment": run.assessment.model_dump(mode="json"),
         "conclusion": "No scientific performance conclusion may be drawn from synthetic demo results.",
     }
     summary_path = output_dir / "demo_summary.json"
@@ -162,11 +188,21 @@ def run_demo(
         f"- Ablations evaluated: `{', '.join(method.method_id for method in ablations)}`\n"
         f"- Evaluation-plan hash: `{plan_hash}`\n"
         f"- Leakage-report hash: `{leakage_hash}`\n\n"
+        f"- Candidate assessment: `{run.assessment.status}`\n"
+        f"- Observed mean margin over the best baseline: "
+        f"`{run.assessment.mean_margin_over_best_baseline}`\n\n"
         "Machine-readable records are in `results.json`; failed outcomes, if any, are "
         "retained there with their error reason.\n",
         encoding="utf-8",
     )
-    artifact_paths = (leakage_path, plan_path, store.path, summary_path, report_path)
+    artifact_paths = (
+        leakage_path,
+        plan_path,
+        store.path,
+        assessment_path,
+        summary_path,
+        report_path,
+    )
     manifest = {
         "scope": "DEMO_ONLY",
         "project_id": project.project_id,

@@ -16,6 +16,7 @@ def test_demo_evaluates_all_baselines_and_writes_traceable_artifacts(tmp_path: P
         "leakage_report.json",
         "evaluation_plan.json",
         "results.json",
+        "integration_assessment.json",
         "demo_summary.json",
         "report.md",
         "manifest.json",
@@ -27,3 +28,4 @@ def test_demo_evaluates_all_baselines_and_writes_traceable_artifacts(tmp_path: P
     assert all(item["result_scope"] == "DEMO_ONLY" for item in records)
     assert all(item["implementation_kind"] == "mechanism_demonstration" for item in records)
     assert all(item["leakage_report_hash"] != "not_specified" for item in records)
+    assert summary["integration_assessment"]["status"] == "DEMO_ONLY"

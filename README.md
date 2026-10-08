@@ -2,7 +2,21 @@
 
 An evidence-grounded framework for designing and evaluating integrations among a user-supplied, closed set of biological algorithms.
 
-This first checkpoint implements the safety-critical core: immutable typed project contracts, closed-set enforcement, claim provenance, evidence-linked integration components, a persisted state machine bound to the configuration hash, frozen evaluation plans, leakage-gated result storage, failure-preserving result records, method interfaces, a CLI, and tests.
+This rough but usable first version implements the safety-critical core: immutable typed project contracts, closed-set enforcement, claim provenance, evidence-linked integration components, a persisted state machine bound to the configuration hash, frozen evaluation plans, leakage-gated result storage, failure-preserving result records, method interfaces, a reusable integration evaluator, a CLI, and tests.
+
+## What “integration” means here
+
+The agent accepts a closed algorithm set plus executable adapters. An `IntegrationDesign` declares which component comes from each supplied algorithm, how the components are composed, the objective metric, the minimum acceptable improvement, and the required ablations. `IntegrationEvaluator` then:
+
+- requires the baseline adapters to match the closed algorithm set exactly;
+- requires every supplied algorithm to contribute to the candidate design;
+- checks that the candidate and ablations exactly match the frozen evaluation plan;
+- blocks all method execution when the leakage audit is blocked;
+- evaluates every planned dataset/split/seed case and preserves failed runs;
+- compares the candidate with the best baseline on matched cases; and
+- emits `IMPROVEMENT_SUPPORTED`, `NO_IMPROVEMENT`, `INCONCLUSIVE`, or `DEMO_ONLY` according to the predeclared rule.
+
+Scientific-mode execution additionally requires a code commit, a verified implementation kind, and an audited `ClaimStore`. Each component claim must be verified and belong to that component's source algorithm. This is an evaluation and governance engine, not an automatic converter of papers or arbitrary repositories into compatible code. Direction-specific adapters still have to be implemented and reviewed.
 
 ## Example scope
 
@@ -37,6 +51,7 @@ The demo writes the following under `artifacts/demo`:
 - `evaluation_plan.json`: the policy frozen before scoring, including the exact baseline set, data, split, metric, seed, preprocessing, tuning, and scope.
 - `leakage_report.json`: the blocking leakage decision and findings.
 - `results.json`: baseline, integrated-demo, and ablation outcomes. Every record carries configuration, evaluation-plan, and leakage-report provenance and remains `DEMO_ONLY`.
+- `integration_assessment.json`: the candidate decision, matched-comparison counts, and margins over the best baseline. Its demo status cannot support a scientific superiority claim.
 - `demo_summary.json`: a concise non-scientific summary with baseline and ablation coverage.
 - `report.md`: a human-readable traceability report with the critical provenance hashes and scope warning.
 - `manifest.json`: SHA-256 checksums for the generated artifacts.
@@ -81,12 +96,12 @@ A rejected import writes `artifacts/evidence_audit.json`, leaves the state uncha
 ## Current limitations
 
 - SpaGCN and STAGATE adapters are mechanism demonstrations only; official packages, pinned versions, and official preprocessing are not integrated.
-- The research state machine defines the full ordered workflow, but method profiling and later scientific stages are not yet wired. The standalone synthetic demo does not claim to complete those stages.
+- The research state machine defines the full ordered workflow, but method profiling and later scientific stages are not yet wired into CLI commands. The reusable evaluator is available as a Python API; the standalone synthetic demo does not claim to complete the scientific stages.
 - No literature retrieval has been performed and no accepted scientific evidence ledger is bundled. URLs in the example configuration are user-supplied identifiers, not claims that this agent independently verified them.
 - The leakage audit checks declared identifiers and policies; it cannot discover undeclared biological relatedness, duplicated raw material, or preprocessing leakage without direction-specific adapters and metadata.
 - The synthetic generator, label-based metric, and ablation outputs are software checks only. They are not biological datasets, benchmarks, or evidence of superiority.
-- Resource estimation, real dataset acquisition, hyperparameter search, official baseline execution, and direction-specific scientific report templates remain future adapters.
+- Adapter generation from arbitrary repositories, resource estimation, real dataset acquisition, hyperparameter search, official baseline execution, uncertainty/statistical testing, and direction-specific scientific report templates remain future work.
 
 ## Next implementation layer
 
-Real projects need direction-specific plugins for evidence retrieval, official baseline execution, datasets, metrics, resource estimates, and report templates. Those adapters should implement the shared contracts without weakening the invariants. Official implementations must replace the mechanism demo before scientific benchmarking.
+Real projects need direction-specific plugins for evidence retrieval, official baseline execution, candidate composition, datasets, metrics, resource estimates, and report templates. Those adapters should implement the shared contracts without weakening the invariants. Official or otherwise validated implementations must replace the mechanism demo before scientific benchmarking. A multi-seed mean-margin rule is not a substitute for uncertainty estimates or dataset-level statistical analysis.

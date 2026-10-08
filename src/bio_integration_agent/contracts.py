@@ -194,6 +194,62 @@ class IntegrationComponent(StrictModel):
     ablation_flag: str
 
 
+class IntegrationDesign(StrictModel):
+    """Auditable declaration of how closed-set components form one candidate."""
+
+    method_id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]*$")]
+    components: tuple[IntegrationComponent, ...]
+    composition_description: str
+    objective_metric: str
+    higher_is_better: bool = True
+    minimum_improvement: Annotated[float, Field(ge=0.0)] = 0.0
+    minimum_complete_comparisons: Annotated[int, Field(ge=1)] = 1
+    result_scope: Literal["DEMO_ONLY", "SCIENTIFIC"]
+
+    @model_validator(mode="after")
+    def validate_components(self) -> "IntegrationDesign":
+        if not self.components:
+            raise ValueError("integration design requires at least one component")
+        component_ids = [item.component_id for item in self.components]
+        if len(component_ids) != len(set(component_ids)):
+            raise ValueError("integration design contains duplicate component_id values")
+        ablation_flags = [item.ablation_flag for item in self.components]
+        if len(ablation_flags) != len(set(ablation_flags)):
+            raise ValueError("each integration component requires a unique ablation_flag")
+        if self.result_scope == "SCIENTIFIC" and any(
+            not item.evidence_claim_ids for item in self.components
+        ):
+            raise ValueError("scientific integration components require evidence_claim_ids")
+        return self
+
+    def validate_for(self, project: ProjectConfig) -> None:
+        supplied = project.algorithm_ids
+        represented = frozenset(item.source_algorithm_id for item in self.components)
+        if represented != supplied:
+            missing = sorted(supplied - represented)
+            extra = sorted(represented - supplied)
+            raise ValueError(
+                "integration design must use exactly the closed algorithm set; "
+                f"missing={missing}, extra={extra}"
+            )
+
+
+class IntegrationAssessment(StrictModel):
+    candidate_method_id: str
+    status: Literal[
+        "DEMO_ONLY", "IMPROVEMENT_SUPPORTED", "NO_IMPROVEMENT", "INCONCLUSIVE"
+    ]
+    result_scope: Literal["DEMO_ONLY", "SCIENTIFIC"]
+    metric: str
+    higher_is_better: bool
+    minimum_improvement: float
+    complete_comparisons: int
+    planned_comparisons: int
+    mean_margin_over_best_baseline: float | None = None
+    worst_margin_over_best_baseline: float | None = None
+    reason: str
+
+
 class LeakageFinding(StrictModel):
     check: str
     severity: Literal["blocking", "warning"]
